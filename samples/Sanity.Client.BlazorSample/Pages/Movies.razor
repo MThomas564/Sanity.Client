@@ -1,0 +1,83 @@
+@page "/movies"
+@inject ISanityClient Sanity
+
+<PageTitle>Movies — Sanity.Client sample</PageTitle>
+
+<h1>Movies</h1>
+
+<p>
+    This page is fetched live from Sanity's public demo dataset
+    (<code>ppsg7ml5</code> / <code>movies</code>) using
+    <code>Sanity.Client</code> via dependency injection, with no auth token
+    required since the dataset is public.
+</p>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else if (_movies is null)
+{
+    <p><em>Loading movies from Sanity&hellip;</em></p>
+}
+else
+{
+    <div class="row">
+        @foreach (var movie in _movies)
+        {
+            <div class="col-sm-6 col-md-4 col-lg-3 mb-4">
+                <div class="card h-100">
+                    @if (!string.IsNullOrEmpty(movie.PosterUrl))
+                    {
+                        <img src="@(movie.PosterUrl + "?w=300&fit=max")" class="card-img-top" alt="@movie.Title poster" />
+                    }
+                    <div class="card-body">
+                        <h5 class="card-title">@movie.Title</h5>
+                        <p class="card-text text-muted small mb-1"><code>@movie.Id</code></p>
+                        <p class="card-text">
+                            @if (movie.ReleaseDate is not null)
+                            {
+                                <span>@movie.ReleaseDate.Value.Year</span>
+                            }
+                            @if (movie.Popularity is not null)
+                            {
+                                <span> &middot; popularity @movie.Popularity.Value.ToString("0.0")</span>
+                            }
+                        </p>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private Movie[]? _movies;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        const string query = """
+            *[_type == "movie"] | order(popularity desc) [0...12]{
+              _id,
+              _type,
+              _rev,
+              _createdAt,
+              _updatedAt,
+              title,
+              popularity,
+              releaseDate,
+              "posterUrl": poster.asset->url
+            }
+            """;
+
+        try
+        {
+            _movies = await Sanity.FetchResultAsync<Movie[]>(query) ?? [];
+        }
+        catch (SanityException ex)
+        {
+            _error = $"Failed to load movies from Sanity: {ex.Message}";
+        }
+    }
+}

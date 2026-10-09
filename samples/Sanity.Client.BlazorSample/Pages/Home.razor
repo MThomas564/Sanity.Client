@@ -1,0 +1,21 @@
+﻿@page "/"
+
+<PageTitle>Sanity.Client Blazor sample</PageTitle>
+
+<h1>Sanity.Client Blazor WASM sample</h1>
+
+<p>
+    This app demonstrates the <code>Sanity.Client</code> SDK being used from
+    a Blazor WebAssembly app via dependency injection.
+</p>
+
+<p>
+    See the <a href="movies">Movies</a> page for a live GROQ query against
+    Sanity's public demo dataset.
+</p>
+
+<p>
+    Connection settings live in <code>wwwroot/appsettings.json</code> under
+    the <code>Sanity</code> section, and are registered in
+    <code>Program.cs</code> via <code>builder.Services.AddSanityClient(builder.Configuration)</code>.
+</p>

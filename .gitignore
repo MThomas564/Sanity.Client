@@ -1,0 +1,11 @@
+## .NET
+bin/
+obj/
+
+## IDE
+.vs/
+.vscode/
+*.user
+
+## OS
+.DS_Store

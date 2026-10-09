@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/Sanity.Client.BlazorSample/Sanity.Client.BlazorSample.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Sanity.Client/Sanity.Client.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Sanity.Client.Tests/Sanity.Client.Tests.csproj" />
+  </Folder>
+</Solution>
