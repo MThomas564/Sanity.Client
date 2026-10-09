@@ -1,0 +1,95 @@
+@page "/presentation"
+@inject ISanityClient Sanity
+@inject ISanityPresentationService PresentationService
+
+<PageTitle>Presentation / Visual Editing — Sanity.Client sample</PageTitle>
+
+<SanityVisualEditing Enabled="@_overlaysEnabled" />
+
+<h1>Presentation tool / Visual Editing</h1>
+
+<p>
+    This page demonstrates <code>Sanity.Client.Presentation</code>: fetching
+    with a Content Source Map, stega-encoding the result for click-to-edit,
+    and enabling the overlay script -- all served from this app's own
+    static web assets (<code>_content/Sanity.Client.Presentation/...</code>),
+    no third-party CDN involved.
+</p>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else if (_movie is null)
+{
+    <p><em>Loading&hellip;</em></p>
+}
+else
+{
+    <dl class="row">
+        <dt class="col-sm-3">Title (raw)</dt>
+        <dd class="col-sm-9">@_movie.Title</dd>
+
+        <dt class="col-sm-3">Title (stega-encoded)</dt>
+        <dd class="col-sm-9">
+            <code>@_encodedMovie!.Title.Length</code> chars
+            (@(_encodedMovie.Title.Length - _movie.Title.Length) invisible characters added)
+        </dd>
+
+        <dt class="col-sm-3">Cleaned back</dt>
+        <dd class="col-sm-9">
+            "@_cleanedTitle" ==
+            <code>@(_cleanedTitle == _movie.Title ? "matches original ✅" : "MISMATCH ❌")</code>
+        </dd>
+    </dl>
+
+    <button class="btn btn-primary" @onclick="ToggleOverlays">
+        @(_overlaysEnabled ? "Disable" : "Enable") visual editing overlays
+    </button>
+    <p class="text-muted mt-2">
+        @(_overlaysEnabled
+            ? "Overlays enabled: @sanity/visual-editing-standalone was loaded and enableVisualEditing() called. Outside an actual Presentation iframe there's no Studio to click through to, but this confirms the vendored script loads and runs without error."
+            : "Overlays are off.")
+    </p>
+}
+
+@code {
+    private Movie? _movie;
+    private Movie? _encodedMovie;
+    private string? _cleanedTitle;
+    private string? _error;
+    private bool _overlaysEnabled;
+
+    protected override async Task OnInitializedAsync()
+    {
+        const string query = """
+            *[_type == "movie"] | order(popularity desc) [0]{
+              _id, _type, _rev, _createdAt, _updatedAt, title, popularity, releaseDate,
+              "posterUrl": poster.asset->url
+            }
+            """;
+
+        try
+        {
+            var result = await Sanity.FetchAsync<Movie>(
+                query,
+                options: new SanityFetchOptions { ResultSourceMap = SanitySourceMapMode.WithKeyArraySelector });
+
+            _movie = result.Result;
+            if (_movie is not null)
+            {
+                _encodedMovie = await PresentationService.StegaEncodeAsync(_movie, result.ResultSourceMap);
+                _cleanedTitle = await PresentationService.StegaCleanAsync(_encodedMovie.Title);
+            }
+        }
+        catch (Exception ex) when (ex is SanityException or JSException)
+        {
+            _error = $"Failed to load/encode movie: {ex.Message}";
+        }
+    }
+
+    private async Task ToggleOverlays()
+    {
+        _overlaysEnabled = !_overlaysEnabled;
+    }
+}

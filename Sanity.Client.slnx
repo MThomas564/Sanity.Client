@@ -3,6 +3,7 @@
     <Project Path="samples/Sanity.Client.BlazorSample/Sanity.Client.BlazorSample.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/Sanity.Client.Presentation/Sanity.Client.Presentation.csproj" />
     <Project Path="src/Sanity.Client/Sanity.Client.csproj" />
   </Folder>
   <Folder Name="/tests/">

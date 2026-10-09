@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Sanity.Client;
 
 /// <summary>
@@ -17,10 +19,15 @@ public sealed class SanityQueryResult<T>
     public double? Ms { get; set; }
 
     /// <summary>
-    /// The resultSourceMap payload, when requested; left untyped since its
-    /// shape is only needed for advanced tooling (e.g. visual editing).
+    /// The Content Source Map, present when the request was made with
+    /// <see cref="SanityFetchOptions.ResultSourceMap"/> set to anything
+    /// other than <see cref="SanitySourceMapMode.None"/>. Left as a raw
+    /// <see cref="JsonElement"/> since its structure is only needed by
+    /// advanced tooling (e.g. <c>Sanity.Client.Presentation</c>'s stega
+    /// encoding / click-to-edit support), which passes it through to the
+    /// real Sanity JS verbatim rather than re-parsing it in .NET.
     /// </summary>
-    public object? ResultSourceMap { get; set; }
+    public JsonElement? ResultSourceMap { get; set; }
 
     /// <summary>Returns true when Sanity reported a syntax error for the query.</summary>
     public string? SyntaxError { get; set; }

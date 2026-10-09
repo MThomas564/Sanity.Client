@@ -1,0 +1,2 @@
+import{t as e}from"./dist-HKp02c-e.js";function t(e={}){let t=new AbortController;return import(`./renderVisualEditing-y3KuzpFF-DECCNbhh.js`).then(({renderVisualEditing:n})=>{let{signal:r}=t;r.aborted||n(r,e)}),()=>{t.abort()}}function n(e={}){return t(e)}export{e as createDataAttribute,n as enableVisualEditing};
+//# sourceMappingURL=index.js.map

@@ -69,6 +69,62 @@ public sealed class SanityClientTests
     }
 
     [Fact]
+    public async Task FetchAsync_SendsPerspectiveAndResultSourceMapWhenRequested()
+    {
+        const string body = """{ "query": "*", "result": null }""";
+        var (client, handler) = CreateClient(HttpStatusCode.OK, body);
+
+        await client.FetchAsync<object>(
+            "*[_type == \"post\"]",
+            options: new SanityFetchOptions
+            {
+                Perspective = SanityPerspective.Drafts,
+                ResultSourceMap = SanitySourceMapMode.WithKeyArraySelector,
+            });
+
+        var uri = handler.LastRequest!.RequestUri!.ToString();
+        Assert.Contains("perspective=drafts", uri);
+        Assert.Contains("resultSourceMap=withKeyArraySelector", uri);
+    }
+
+    [Fact]
+    public async Task FetchAsync_OmitsPerspectiveAndSourceMapByDefault()
+    {
+        const string body = """{ "query": "*", "result": null }""";
+        var (client, handler) = CreateClient(HttpStatusCode.OK, body);
+
+        await client.FetchAsync<object>("*[_type == \"post\"]");
+
+        var uri = handler.LastRequest!.RequestUri!.ToString();
+        Assert.DoesNotContain("perspective=", uri);
+        Assert.DoesNotContain("resultSourceMap=", uri);
+    }
+
+    [Fact]
+    public async Task FetchAsync_DeserializesResultSourceMap()
+    {
+        const string body = """
+            {
+              "query": "*",
+              "result": {"title": "Hello"},
+              "resultSourceMap": {
+                "documents": [{"_id": "post-1", "_type": "post"}],
+                "paths": ["$['title']"],
+                "mappings": {}
+              }
+            }
+            """;
+        var (client, _) = CreateClient(HttpStatusCode.OK, body);
+
+        var result = await client.FetchAsync<object>(
+            "*[_type == \"post\"][0]",
+            options: new SanityFetchOptions { ResultSourceMap = SanitySourceMapMode.Enabled });
+
+        Assert.NotNull(result.ResultSourceMap);
+        Assert.True(result.ResultSourceMap!.Value.TryGetProperty("documents", out _));
+    }
+
+    [Fact]
     public async Task FetchAsync_ThrowsSanityException_OnHttpError()
     {
         var (client, _) = CreateClient(HttpStatusCode.Unauthorized, "unauthorized");

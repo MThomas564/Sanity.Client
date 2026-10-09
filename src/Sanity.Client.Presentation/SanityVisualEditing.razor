@@ -1,0 +1,44 @@
+@implements IAsyncDisposable
+@inject ISanityPresentationService Presentation
+
+@* Renders nothing itself; just enables/disables overlays as Enabled changes. *@
+
+@code {
+    /// <summary>
+    /// Whether overlays should be active. Bind this to your app's draft
+    /// mode / preview flag -- e.g. a query string flag set by the
+    /// Presentation tool, or a cookie. Keep this false in production
+    /// unless you're actually being previewed.
+    /// </summary>
+    [Parameter]
+    public bool Enabled { get; set; }
+
+    private bool _currentlyEnabled;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Enabled == _currentlyEnabled)
+        {
+            return;
+        }
+
+        if (Enabled)
+        {
+            await Presentation.EnableVisualEditingAsync();
+        }
+        else
+        {
+            await Presentation.DisableVisualEditingAsync();
+        }
+
+        _currentlyEnabled = Enabled;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_currentlyEnabled)
+        {
+            await Presentation.DisableVisualEditingAsync();
+        }
+    }
+}

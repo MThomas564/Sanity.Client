@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Sanity.Client;
 
@@ -14,6 +15,12 @@ public sealed class SanityClient : ISanityClient
     private readonly SanityClientOptions _options;
     private readonly JsonSerializerOptions _jsonOptions;
 
+    // Disambiguates for ActivatorUtilities (used internally by
+    // AddHttpClient<ISanityClient, SanityClient>()), which otherwise can't
+    // choose between this and the SanityClientOptions overload below since
+    // both HttpClient and IOptions<SanityClientOptions> are resolvable
+    // from the container.
+    [ActivatorUtilitiesConstructor]
     public SanityClient(HttpClient httpClient, Microsoft.Extensions.Options.IOptions<SanityClientOptions> options)
         : this(httpClient, options.Value)
     {
@@ -45,6 +52,7 @@ public sealed class SanityClient : ISanityClient
     public async Task<SanityQueryResult<T>> FetchAsync<T>(
         string query,
         object? @params = null,
+        SanityFetchOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -52,7 +60,7 @@ public sealed class SanityClient : ISanityClient
             throw new ArgumentException("A GROQ query string is required.", nameof(query));
         }
 
-        var relativeUrl = BuildQueryUrl(query, @params);
+        var relativeUrl = BuildQueryUrl(query, @params, options);
 
         HttpResponseMessage response;
         string body;
@@ -105,13 +113,14 @@ public sealed class SanityClient : ISanityClient
     public async Task<T?> FetchResultAsync<T>(
         string query,
         object? @params = null,
+        SanityFetchOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await FetchAsync<T>(query, @params, cancellationToken).ConfigureAwait(false);
+        var result = await FetchAsync<T>(query, @params, options, cancellationToken).ConfigureAwait(false);
         return result.Result;
     }
 
-    private string BuildQueryUrl(string query, object? @params)
+    private string BuildQueryUrl(string query, object? @params, SanityFetchOptions? options)
     {
         var sb = new StringBuilder();
         sb.Append(_options.ApiVersion)
@@ -119,6 +128,16 @@ public sealed class SanityClient : ISanityClient
           .Append(Uri.EscapeDataString(_options.Dataset))
           .Append("?query=")
           .Append(Uri.EscapeDataString(query));
+
+        if (options?.Perspective is { } perspective)
+        {
+            sb.Append("&perspective=").Append(ToPerspectiveString(perspective));
+        }
+
+        if (options?.ResultSourceMap is { } sourceMapMode and not SanitySourceMapMode.None)
+        {
+            sb.Append("&resultSourceMap=").Append(ToSourceMapString(sourceMapMode));
+        }
 
         if (@params is not null)
         {
@@ -137,4 +156,19 @@ public sealed class SanityClient : ISanityClient
 
         return sb.ToString();
     }
+
+    private static string ToPerspectiveString(SanityPerspective perspective) => perspective switch
+    {
+        SanityPerspective.Published => "published",
+        SanityPerspective.Raw => "raw",
+        SanityPerspective.Drafts => "drafts",
+        _ => throw new ArgumentOutOfRangeException(nameof(perspective), perspective, null),
+    };
+
+    private static string ToSourceMapString(SanitySourceMapMode mode) => mode switch
+    {
+        SanitySourceMapMode.Enabled => "true",
+        SanitySourceMapMode.WithKeyArraySelector => "withKeyArraySelector",
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null),
+    };
 }
