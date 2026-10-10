@@ -9,7 +9,7 @@ real usage, so please open an issue or discussion if something here matters to y
 
 ## Principles
 
-- **Modern .NET only.** Targets .NET 8, 9 and 10. No legacy target frameworks.
+- **Modern .NET only.** Targets .NET 8, 9 and 10.
 - **System.Text.Json native.** No Newtonsoft.Json dependency.
 - **Small, honest surface.** Ship less, and document exactly what works and what has not been verified.
 - **Blazor WebAssembly friendly.** Small dependency footprint, trimming in mind, and loud warnings about never shipping API tokens to the browser.
@@ -76,7 +76,6 @@ real usage, so please open an issue or discussion if something here matters to y
 ## Not planned
 
 - Wrapping or embedding Sanity Studio
-- Legacy target frameworks (.NET Framework, .NET Standard)
 
 ## How to help
 

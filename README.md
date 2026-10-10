@@ -9,6 +9,10 @@ Editing / Presentation tool integration.
 > JavaScript/TypeScript client, see
 > [`@sanity/client`](https://github.com/sanity-io/client).
 
+Sanity.Client targets .NET 8, 9 and 10. If you need compatibility with
+older runtimes (such as .NET Framework), take a look at
+[sanity-linq](https://github.com/oslofjord/sanity-linq).
+
 ## Quickstart
 
 ```
