@@ -1,0 +1,31 @@
+<Project>
+
+  <!-- Pick up the repo-wide settings (Nullable, shared package metadata,
+       version) too: a nested Directory.Build.props stops the normal
+       upward search, so it must be imported explicitly. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!-- SourceLink: lets consumers step into these packages' source from a
+       debugger, and stamps the exact commit into the built assembly.
+       Scoped to src/ (the actual packable/published projects) rather
+       than the whole repo, since it's meaningless for the test and
+       sample projects. -->
+  <PropertyGroup>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- GHSA-23fw-v26w-5fgq / CVE-2026-62900 (verified against the GitHub
+         Advisory Database, moderate/CVSS 5.9, published 2026-08-11):
+         Microsoft.SourceLink.GitHub 8.0.0 pulls Microsoft.Build.Tasks.Git
+         exactly 8.0.0, one of the affected versions (patched: 10.0.111 /
+         10.0.303 depending on band). 10.0.401 is comfortably clear of
+         every affected range. -->
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.401" PrivateAssets="All" />
+  </ItemGroup>
+
+</Project>

@@ -208,6 +208,117 @@ public sealed class SanityClientTests
         Assert.IsAssignableFrom<ISanityDocument>(movie);
     }
 
+    [Fact]
+    public async Task FetchAsync_UsesGet_ForShortQueries()
+    {
+        const string body = """{ "query": "*", "result": null }""";
+        var (client, handler) = CreateClient(HttpStatusCode.OK, body);
+
+        await client.FetchAsync<object>("*[_type == \"post\"]");
+
+        Assert.Equal(HttpMethod.Get, handler.LastRequest!.Method);
+        Assert.Null(handler.LastRequestBody);
+    }
+
+    [Fact]
+    public async Task FetchAsync_FallsBackToPost_ForVeryLongQueries()
+    {
+        const string body = """{ "query": "*", "result": null }""";
+        var (client, handler) = CreateClient(HttpStatusCode.OK, body);
+
+        // Pad the query well past the 11264-character GET threshold.
+        var longQuery = "*[_type == \"post\" && (" +
+            string.Join(" || ", Enumerable.Range(0, 1000).Select(i => $"slug.current == \"post-{i}\"")) +
+            ")]";
+        Assert.True(longQuery.Length > 11264, "test query should exceed the GET threshold");
+
+        await client.FetchAsync<object>(longQuery);
+
+        Assert.Equal(HttpMethod.Post, handler.LastRequest!.Method);
+        Assert.NotNull(handler.LastRequestBody);
+        var sentQuery = System.Text.Json.JsonDocument.Parse(handler.LastRequestBody!)
+            .RootElement.GetProperty("query").GetString();
+        Assert.Equal(longQuery, sentQuery);
+        // The long query must not have been encoded into the URL itself.
+        Assert.DoesNotContain("query=", handler.LastRequest.RequestUri!.Query);
+    }
+
+    [Fact]
+    public async Task FetchAsync_PostFallback_IncludesParamsInBody()
+    {
+        const string body = """{ "query": "*", "result": null }""";
+        var (client, handler) = CreateClient(HttpStatusCode.OK, body);
+
+        var longQuery = "*[_type == \"post\" && slug.current == $slug && (" +
+            string.Join(" || ", Enumerable.Range(0, 1000).Select(i => $"category == \"cat-{i}\"")) +
+            ")]";
+
+        await client.FetchAsync<object>(longQuery, new { slug = "hello-world" });
+
+        Assert.Equal(HttpMethod.Post, handler.LastRequest!.Method);
+        var sentParams = System.Text.Json.JsonDocument.Parse(handler.LastRequestBody!)
+            .RootElement.GetProperty("params");
+        Assert.Equal("hello-world", sentParams.GetProperty("slug").GetString());
+    }
+
+    [Fact]
+    public async Task FetchAsync_PostFallback_StillAppliesPerspectiveAndSourceMapAsQueryParams()
+    {
+        const string body = """{ "query": "*", "result": null }""";
+        var (client, handler) = CreateClient(HttpStatusCode.OK, body);
+
+        var longQuery = "*[_type == \"post\" && (" +
+            string.Join(" || ", Enumerable.Range(0, 1000).Select(i => $"slug.current == \"post-{i}\"")) +
+            ")]";
+
+        await client.FetchAsync<object>(
+            longQuery,
+            options: new SanityFetchOptions
+            {
+                Perspective = SanityPerspective.Drafts,
+                ResultSourceMap = SanitySourceMapMode.WithKeyArraySelector,
+            });
+
+        Assert.Equal(HttpMethod.Post, handler.LastRequest!.Method);
+        var uri = handler.LastRequest.RequestUri!.ToString();
+        Assert.Contains("perspective=drafts", uri);
+        Assert.Contains("resultSourceMap=withKeyArraySelector", uri);
+    }
+
+    [Fact]
+    public async Task FetchAsync_ThrowsSanityException_OnTimeout()
+    {
+        var options = new SanityClientOptions
+        {
+            ProjectId = "test123",
+            Dataset = "production",
+            Timeout = TimeSpan.FromMilliseconds(20),
+        };
+
+        var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, """{ "query": "*", "result": null }""")
+        {
+            Delay = TimeSpan.FromSeconds(5),
+        };
+        using var httpClient = new HttpClient(handler);
+        var client = new SanityClient(httpClient, options);
+
+        var ex = await Assert.ThrowsAsync<SanityException>(
+            () => client.FetchAsync<object>("*[_type == \"post\"]"));
+
+        Assert.Contains("timed out", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task FetchAsync_PropagatesCallerCancellation_WithoutWrapping()
+    {
+        var (client, _) = CreateClient(HttpStatusCode.OK, """{ "query": "*", "result": null }""");
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => client.FetchAsync<object>("*[_type == \"post\"]", cancellationToken: cts.Token));
+    }
+
     private sealed class Post
     {
         [JsonPropertyName("_id")]

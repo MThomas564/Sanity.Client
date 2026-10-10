@@ -56,6 +56,16 @@ public sealed class SanityClientOptions
     /// </summary>
     public Uri? BaseUriOverride { get; set; }
 
+    /// <summary>
+    /// Optional per-request timeout applied to the underlying
+    /// <see cref="HttpClient"/>. Left unset, the <see cref="HttpClient"/>'s
+    /// own default applies (100 seconds for a plain <c>new HttpClient()</c>,
+    /// or whatever <c>IHttpClientFactory</c>/your own configuration sets).
+    /// Only takes effect if set before the first request is sent via this
+    /// <see cref="SanityClientOptions"/> instance's <see cref="HttpClient"/>.
+    /// </summary>
+    public TimeSpan? Timeout { get; set; }
+
     internal void Validate()
     {
         if (string.IsNullOrWhiteSpace(ProjectId))

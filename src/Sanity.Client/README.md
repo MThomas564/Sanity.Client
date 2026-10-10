@@ -103,6 +103,15 @@ var posts = await client.FetchResultAsync<Post[]>("*[_type == \"post\"]");
   speed; set `UseCdn = false` for strongly-consistent reads, or supply a
   `Token` for private datasets (which automatically bypasses the CDN unless
   `UseCdnWithToken` is set).
+- Large queries automatically switch from GET to POST once the encoded
+  query string would exceed 11,264 characters (the same threshold
+  `@sanity/client` itself uses), so you don't need to think about URL
+  length limits even for very large GROQ queries or parameter sets.
+- Set `SanityClientOptions.Timeout` for a per-client request timeout
+  (applied to the underlying `HttpClient`). A timeout surfaces as a
+  `SanityException` with "timed out" in the message, distinct from your
+  own `CancellationToken` being triggered (which propagates as
+  `OperationCanceledException`, unwrapped).
 
 ## ⚠️ Never put a Token in a Blazor WebAssembly app's config
 
