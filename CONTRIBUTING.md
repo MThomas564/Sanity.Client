@@ -63,6 +63,13 @@ preferred, since JS interop failures often don't show up any other way.
   real API, etc.) -- "builds" is not the same as "works".
 - Keep commit messages descriptive; this repo doesn't squash-merge by
   default, so individual commits show up in history.
+- CI (`.github/workflows/ci.yml`) builds and tests across Ubuntu/Windows
+  and net8/9/10, checks formatting, gates on known-vulnerable packages,
+  and does a package-install smoke test. All of it has to pass before
+  merge. See `RELEASING.md` for how a merge to `main` eventually becomes
+  a published package (short version: every main build goes to GitHub
+  Packages automatically; nuget.org only happens from a tag, and needs a
+  manual approval click).
 
 ## Code of conduct
 

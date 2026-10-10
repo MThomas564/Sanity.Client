@@ -1,0 +1,96 @@
+name: Release
+
+# Tag-triggered only. A v* tag (annotated, pushed to this repo) is the
+# single trigger for a real release -- see RELEASING.md for the full
+# flow and naming convention (-preview.N for ad-hoc previews, -rc.N only
+# for a deliberately cut release candidate, no suffix for GA).
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build, test & pack (once)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.pack.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - run: dotnet restore Sanity.Client.slnx
+      - run: dotnet build Sanity.Client.slnx -c Release --no-restore
+      - run: dotnet test tests/Sanity.Client.Tests/Sanity.Client.Tests.csproj -c Release --no-build
+
+      - name: Pack (build once, promote this exact artifact -- never rebuild at publish time)
+        id: pack
+        run: |
+          mkdir -p ./nupkgs
+          dotnet pack src/Sanity.Client/Sanity.Client.csproj -c Release --no-build -o ./nupkgs
+          dotnet pack src/Sanity.Client.Presentation/Sanity.Client.Presentation.csproj -c Release --no-build -o ./nupkgs
+          core_pkg=$(ls ./nupkgs/Sanity.Client.*.nupkg | grep -v 'Presentation' | grep -v '\.snupkg$')
+          version=$(basename "$core_pkg" .nupkg | sed 's/^Sanity\.Client\.//')
+          echo "Resolved version: $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Upload packed nupkgs as a build artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nupkgs
+          path: ./nupkgs/*
+          retention-days: 90
+
+  publish-nuget:
+    name: Publish to nuget.org (requires manual approval)
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # A GitHub Environment with a required reviewer configured (see
+    # RELEASING.md) -- the job pauses here until someone with access
+    # clicks "Approve" in the Actions run UI. This is the one deliberate
+    # piece of ceremony in an otherwise fully automated pipeline: a full
+    # nuget.org release should always need an explicit human decision.
+    environment: nuget-production
+    steps:
+      - name: Download the exact artifact built & tested above
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nupkgs
+          path: ./nupkgs
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Push Sanity.Client (core, first)
+        run: |
+          dotnet nuget push "./nupkgs/Sanity.Client.${{ needs.build.outputs.version }}.nupkg" \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --skip-duplicate
+        # Prefer nuget.org Trusted Publishing (OIDC) over a long-lived
+        # API key if/when it's set up for this account -- see
+        # RELEASING.md for the switch-over steps. Until then this uses
+        # an API key scoped to just the Sanity.Client / .Presentation
+        # package IDs (secrets.NUGET_API_KEY), stored as a repo secret
+        # and only ever reachable from this environment-gated job.
+
+      - name: Push Sanity.Client.Presentation (depends on core, so core goes first)
+        run: |
+          dotnet nuget push "./nupkgs/Sanity.Client.Presentation.${{ needs.build.outputs.version }}.nupkg" \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --skip-duplicate

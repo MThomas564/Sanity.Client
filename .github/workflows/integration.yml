@@ -1,0 +1,31 @@
+name: Integration (live Sanity API)
+
+# Deliberately NOT part of the PR/merge gate (see tests/Sanity.Client.IntegrationTests):
+# these hit the real public Sanity demo dataset over the network, and
+# flakiness there shouldn't block unrelated PRs. Runs nightly and
+# on-demand instead.
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: integration-${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  live-api-tests:
+    name: Live Sanity API tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet test tests/Sanity.Client.IntegrationTests/Sanity.Client.IntegrationTests.csproj -c Release

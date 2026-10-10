@@ -7,6 +7,7 @@
     <Project Path="src/Sanity.Client/Sanity.Client.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Sanity.Client.IntegrationTests/Sanity.Client.IntegrationTests.csproj" />
     <Project Path="tests/Sanity.Client.Tests/Sanity.Client.Tests.csproj" />
   </Folder>
 </Solution>

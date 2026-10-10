@@ -1,5 +1,8 @@
 # Sanity.Client
 
+[![CI](https://github.com/MThomas564/Sanity.Client/actions/workflows/ci.yml/badge.svg)](https://github.com/MThomas564/Sanity.Client/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/MThomas564/Sanity.Client/actions/workflows/codeql.yml/badge.svg)](https://github.com/MThomas564/Sanity.Client/actions/workflows/codeql.yml)
+
 A .NET SDK for querying [Sanity.io](https://www.sanity.io) content with
 GROQ, with first-class Blazor WebAssembly support and optional Visual
 Editing / Presentation tool integration.
