@@ -57,3 +57,11 @@ Then open the app and navigate to **Movies** or **Presentation**.
 See `src/Sanity.Client/README.md` and
 `src/Sanity.Client.Presentation/README.md` for each package's usage docs
 (these also ship inside their NuGet packages).
+
+## ⚠️ Security: never put an API token in a Blazor WebAssembly app
+
+`wwwroot/appsettings.json` (and everything else under `wwwroot/`) ships
+as a plain static file to every visitor's browser in a WASM app -- there
+is no server to keep it private. See the "Never put a Token in a Blazor
+WebAssembly app's config" section of `src/Sanity.Client/README.md` before
+using `SanityClientOptions.Token` outside a public, read-only dataset.

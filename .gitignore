@@ -1,10 +1,17 @@
 ## .NET
 bin/
 obj/
+*.nupkg
+*.snupkg
+TestResults/
+[Cc]overage*/
+*.coverage
+*.coveragexml
 
 ## IDE
 .vs/
 .vscode/
+.idea/
 *.user
 
 ## OS

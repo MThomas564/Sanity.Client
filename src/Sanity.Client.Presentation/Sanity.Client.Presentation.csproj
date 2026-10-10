@@ -2,22 +2,13 @@
 
   <PropertyGroup>
     <TargetFrameworks>net10.0;net9.0;net8.0</TargetFrameworks>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <LangVersion>latest</LangVersion>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <PropertyGroup>
     <PackageId>Sanity.Client.Presentation</PackageId>
-    <Version>0.1.0</Version>
-    <Authors>Matthew Thomas</Authors>
     <Description>Sanity Presentation tool / Visual Editing support (stega-encoded click-to-edit overlays) for Blazor apps using Sanity.Client. Ships the required JS vendored locally -- no third-party CDN at runtime.</Description>
     <PackageTags>sanity;sanity.io;presentation;visual-editing;stega;blazor;blazor-wasm</PackageTags>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

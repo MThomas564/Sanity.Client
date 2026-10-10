@@ -103,3 +103,28 @@ var posts = await client.FetchResultAsync<Post[]>("*[_type == \"post\"]");
   speed; set `UseCdn = false` for strongly-consistent reads, or supply a
   `Token` for private datasets (which automatically bypasses the CDN unless
   `UseCdnWithToken` is set).
+
+## ⚠️ Never put a Token in a Blazor WebAssembly app's config
+
+In Blazor Server, Blazor Hybrid, or any ASP.NET Core app, `appsettings.json`
+lives on the server and `options.Token` stays private.
+
+**In Blazor WebAssembly, there is no server.** Everything under `wwwroot/`
+-- including `wwwroot/appsettings.json` -- is downloaded as a plain static
+file straight to the browser. Anyone can open dev tools (or just
+`view-source:`) and read it. If you bind `SanityClientOptions.Token` from
+configuration in a WASM app, **you are shipping that token to every
+visitor**, and with it write access to your dataset if the token has write
+permissions.
+
+For a Blazor WASM app:
+- Only query **public** datasets without a token (as the sample app does),
+  or
+- Put the token behind a thin server-side endpoint (an ASP.NET Core
+  minimal API, Azure Function, etc.) that your WASM app calls instead of
+  talking to Sanity directly, keeping the token server-side where it
+  belongs.
+
+This applies to `Sanity.Client.Presentation` too: a `Token` used to fetch
+drafts for preview is exactly as exposed as any other config value in a
+WASM app's `wwwroot`.
