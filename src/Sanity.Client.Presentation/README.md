@@ -1,8 +1,9 @@
 # Sanity.Client.Presentation
 
 Blazor support for Sanity's **Presentation tool** (Visual Editing):
-stega-encoded click-to-edit overlays, wired into your app via dependency
-injection. Depends on `Sanity.Client` for fetching data.
+stega-encoded click-to-edit overlays plus live preview updates, wired into
+your app via dependency injection. Depends on `Sanity.Client` for
+fetching data.
 
 All required JavaScript (Sanity's own `stegaEncodeSourceMap` plus
 `@sanity/visual-editing-standalone`) is **vendored inside this package**
@@ -10,6 +11,20 @@ and served from your app's own origin as a static web asset
 (`_content/Sanity.Client.Presentation/...`) -- nothing is loaded from a
 third-party CDN at runtime. See `wwwroot/vendor/NOTICE.md` for exact
 versions and how to rebuild them.
+
+## Two separate concerns -- don't confuse them
+
+Stega encoding and overlays are **not** what makes the preview update
+live as an editor types. They're separate mechanisms:
+
+| Concern | What it does | API |
+|---|---|---|
+| **Click-to-edit** | Lets an editor click rendered text in the preview and jump straight to that field in the Studio. Works by embedding invisible metadata into strings (stega) that the overlay script decodes. | `StegaEncodeAsync`, `<SanityVisualEditing>` |
+| **Live preview updates** | Makes the preview re-render in place when content changes in the Studio, without a page reload. | the `OnRefresh` callback, below |
+
+If you only wire stega + overlays, click-to-edit works but the preview
+will *not* update when content changes -- you also need the refresh
+callback.
 
 ## Install
 
@@ -64,14 +79,29 @@ preview/draft mode -- never on a normal production request, both for
 performance and because it leaks invisible metadata into rendered text if
 left on by accident.
 
-## Enable overlays
+## Enable overlays AND live updates together
 
 Drop the component in your layout, bound to whatever flag tracks whether
 you're being previewed by the Presentation tool (e.g. a query string or
-cookie your app sets when Sanity opens it in the Presentation iframe):
+cookie your app sets when Sanity opens it in the Presentation iframe).
+`OnRefresh` is what makes the preview actually update when content
+changes -- without it you only get click-to-edit, which is the gap you'll
+notice if you skip this part:
 
 ```razor
-<SanityVisualEditing Enabled="@IsPreviewMode" />
+<SanityVisualEditing Enabled="@IsPreviewMode" OnRefresh="HandleRefreshAsync" />
+
+@code {
+    private async Task<bool> HandleRefreshAsync(SanityRefreshPayload payload)
+    {
+        // payload.Source is "mutation" (a document was edited -- payload.Document
+        // has _id/_type/_rev) or "manual" (editor clicked Studio's refresh button).
+        await ReloadPostAsync(); // re-fetch with SanityPerspective.Drafts
+        StateHasChanged();
+        return true; // tells Sanity this was handled; omit/return false to
+                      // let Sanity fall back to its own default behavior.
+    }
+}
 ```
 
 Or call the service directly for more control:
@@ -79,20 +109,35 @@ Or call the service directly for more control:
 ```csharp
 @inject ISanityPresentationService Presentation
 
-var overlays = await Presentation.EnableVisualEditingAsync();
+var overlays = await Presentation.EnableVisualEditingAsync(onRefresh: HandleRefreshAsync);
 // later:
 await overlays.DisposeAsync();
 ```
 
 ## What's verified vs. what isn't
 
-- The stega encoding path (`StegaEncodeAsync` / `StegaCleanAsync`) is
-  verified end to end against the real, unmodified `@sanity/client` +
-  `@vercel/stega` code -- the exact output (including the edit-intent
-  URL shape) matches what Sanity's own client produces.
-- The overlay path (`EnableVisualEditingAsync`) calls
-  `@sanity/visual-editing-standalone`'s `enableVisualEditing()` exactly as
-  documented, unmodified. It hasn't been exercised inside a real
-  Presentation iframe talking to a live Studio (that requires a Studio
-  deployment this SDK doesn't ship) -- test that part against your own
-  Studio before relying on it in production.
+Verified end to end in a real headless-Chrome session against the live
+public Sanity API (see the Blazor sample's `/presentation` page):
+
+- **Stega encoding** (`StegaEncodeAsync` / `StegaCleanAsync`): output
+  matches the real, unmodified `@sanity/client` + `@vercel/stega` code --
+  same edit-intent URL shape, and cleans back to the exact original
+  string.
+- **Overlay loading** (`EnableVisualEditingAsync`): the vendored
+  `@sanity/visual-editing-standalone` loads and `enableVisualEditing()`
+  runs with zero console errors, creating its `<sanity-visual-editing>`
+  element.
+- **The refresh bridge**: simulating a Studio mutation event and invoking
+  the registered `refresh` callback directly (the same call path
+  `@sanity/visual-editing-standalone` uses internally) round-trips
+  correctly through `DotNetObjectReference` -> `OnRefreshAsync` -> your
+  C# delegate -> back to JS as a boolean, and the sample's UI updates in
+  response.
+
+**Not verified**: the actual Comlink/postMessage wiring between a real
+Sanity Studio's Presentation iframe and this code -- that requires a live
+Studio deployment, which this SDK doesn't ship. Everything up to the
+point where Sanity's own code would call our `refresh` option has been
+exercised with Sanity's real, unmodified JS; what hasn't been exercised
+is Sanity's Studio-side code that decides *when* to call it. Test that
+part against your own Studio before relying on it in production.

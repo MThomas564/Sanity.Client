@@ -7,6 +7,7 @@ import { stegaEncodeSourceMap, vercelStegaClean } from "./vendor/stega/sanity-st
 
 let visualEditingModulePromise = null;
 let activeDisableFns = new Map();
+let activeRefreshFns = new Map();
 let nextHandle = 1;
 
 function loadVisualEditingModule() {
@@ -42,12 +43,42 @@ export function stegaClean(value) {
  * Dynamically imports `@sanity/visual-editing-standalone` and calls
  * `enableVisualEditing()`. Returns an opaque handle; pass it to
  * `disableVisualEditing` to tear the overlays down again.
+ *
+ * `onRefreshDotNetRef`, if given, is a .NET object reference with an
+ * `OnRefreshAsync(payloadJson: string): Task<bool>` `[JSInvokable]`
+ * method. It's wired as the `refresh` option: when the Studio reports a
+ * mutation (or a manual refresh request), we call into .NET and await the
+ * result. Returning `true` tells Sanity the refresh was handled (no
+ * further action); returning `false` lets Sanity fall back to its own
+ * default behavior (eventually a full reload) after its internal timeout.
  */
-export async function enableVisualEditing(options) {
+export async function enableVisualEditing(onRefreshDotNetRef, options) {
     const { enableVisualEditing: enable } = await loadVisualEditingModule();
-    const disable = enable(options ?? {});
+
+    const mergedOptions = { ...(options ?? {}) };
+    let refreshFn = null;
+    if (onRefreshDotNetRef) {
+        refreshFn = async (payload) => {
+            try {
+                const handled = await onRefreshDotNetRef.invokeMethodAsync(
+                    "OnRefreshAsync",
+                    JSON.stringify(payload),
+                );
+                return handled === true;
+            } catch (e) {
+                console.error("Sanity.Client.Presentation: refresh callback threw", e);
+                return false;
+            }
+        };
+        mergedOptions.refresh = refreshFn;
+    }
+
+    const disable = enable(mergedOptions);
     const handle = nextHandle++;
     activeDisableFns.set(handle, disable);
+    if (refreshFn) {
+        activeRefreshFns.set(handle, refreshFn);
+    }
     return handle;
 }
 
@@ -57,5 +88,20 @@ export function disableVisualEditing(handle) {
     if (disable) {
         disable();
         activeDisableFns.delete(handle);
+        activeRefreshFns.delete(handle);
     }
+}
+
+/**
+ * TESTING ONLY. Invokes the `refresh` callback wired for `handle` exactly
+ * as Sanity's own overlay code would when the Studio reports a change,
+ * without needing a real Presentation iframe/Studio. Used to verify the
+ * JS-to-.NET refresh bridge end to end. Not part of the public API.
+ */
+export async function __testInvokeRefresh(handle, payload) {
+    const refreshFn = activeRefreshFns.get(handle);
+    if (!refreshFn) {
+        throw new Error(`No refresh callback registered for handle ${handle}`);
+    }
+    return await refreshFn(payload);
 }

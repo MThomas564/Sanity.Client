@@ -13,6 +13,18 @@
     [Parameter]
     public bool Enabled { get; set; }
 
+    /// <summary>
+    /// Called when the Presentation tool reports content changed and the
+    /// preview should update (see
+    /// <see cref="ISanityPresentationService.EnableVisualEditingAsync"/>).
+    /// Typically you'll re-fetch with <see cref="SanityPerspective.Drafts"/>
+    /// and call <c>StateHasChanged()</c> on whatever component owns the
+    /// data, then return true. Leave unset to let Sanity fall back to its
+    /// own default handling.
+    /// </summary>
+    [Parameter]
+    public Func<SanityRefreshPayload, Task<bool>>? OnRefresh { get; set; }
+
     private bool _currentlyEnabled;
 
     protected override async Task OnParametersSetAsync()
@@ -24,7 +36,7 @@
 
         if (Enabled)
         {
-            await Presentation.EnableVisualEditingAsync();
+            await Presentation.EnableVisualEditingAsync(OnRefresh);
         }
         else
         {

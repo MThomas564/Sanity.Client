@@ -14,9 +14,9 @@ public sealed class SanityPresentationService : ISanityPresentationService
 
     private readonly IJSRuntime _jsRuntime;
     private readonly SanityPresentationOptions _options;
-    private readonly JsonSerializerOptions _jsonOptions;
     private Task<IJSObjectReference>? _modulePromise;
     private long? _activeOverlayHandle;
+    private RefreshCallbackBridge? _activeRefreshBridge;
 
     public SanityPresentationService(IJSRuntime jsRuntime, Microsoft.Extensions.Options.IOptions<SanityPresentationOptions> options)
         : this(jsRuntime, options.Value)
@@ -31,7 +31,6 @@ public sealed class SanityPresentationService : ISanityPresentationService
 
         _jsRuntime = jsRuntime;
         _options = options;
-        _jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
     }
 
     /// <inheritdoc />
@@ -63,10 +62,25 @@ public sealed class SanityPresentationService : ISanityPresentationService
     }
 
     /// <inheritdoc />
-    public async Task<IAsyncDisposable> EnableVisualEditingAsync(CancellationToken cancellationToken = default)
+    public async Task<IAsyncDisposable> EnableVisualEditingAsync(
+        Func<SanityRefreshPayload, Task<bool>>? onRefresh = null,
+        CancellationToken cancellationToken = default)
     {
         var module = await GetModuleAsync(cancellationToken).ConfigureAwait(false);
-        var handle = await module.InvokeAsync<long>("enableVisualEditing", cancellationToken, (object?)null).ConfigureAwait(false);
+
+        object? dotNetRef = null;
+        if (onRefresh is not null)
+        {
+            _activeRefreshBridge = new RefreshCallbackBridge(onRefresh);
+            dotNetRef = _activeRefreshBridge.Reference;
+        }
+
+        var handle = await module.InvokeAsync<long>(
+            "enableVisualEditing",
+            cancellationToken,
+            dotNetRef,
+            (object?)null).ConfigureAwait(false);
+
         _activeOverlayHandle = handle;
         return new OverlayHandle(this, handle);
     }
@@ -82,6 +96,9 @@ public sealed class SanityPresentationService : ISanityPresentationService
         var module = await _modulePromise.ConfigureAwait(false);
         await module.InvokeVoidAsync("disableVisualEditing", cancellationToken, handle).ConfigureAwait(false);
         _activeOverlayHandle = null;
+
+        _activeRefreshBridge?.Dispose();
+        _activeRefreshBridge = null;
     }
 
     private Task<IJSObjectReference> GetModuleAsync(CancellationToken cancellationToken)
@@ -95,6 +112,8 @@ public sealed class SanityPresentationService : ISanityPresentationService
     public async ValueTask DisposeAsync()
     {
         await DisableVisualEditingAsync().ConfigureAwait(false);
+        _activeRefreshBridge?.Dispose();
+        _activeRefreshBridge = null;
 
         if (_modulePromise is not null)
         {
@@ -119,5 +138,49 @@ public sealed class SanityPresentationService : ISanityPresentationService
                 await owner.DisableVisualEditingAsync().ConfigureAwait(false);
             }
         }
+    }
+
+    /// <summary>
+    /// Bridges JS's call into .NET for the <c>refresh</c> option of
+    /// <c>enableVisualEditing()</c>. Owns the <see cref="DotNetObjectReference{T}"/>
+    /// it exposes to JS and disposes it alongside itself.
+    /// </summary>
+    private sealed class RefreshCallbackBridge : IDisposable
+    {
+        private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+        private readonly Func<SanityRefreshPayload, Task<bool>> _onRefresh;
+
+        public RefreshCallbackBridge(Func<SanityRefreshPayload, Task<bool>> onRefresh)
+        {
+            _onRefresh = onRefresh;
+            Reference = DotNetObjectReference.Create(this);
+        }
+
+        public DotNetObjectReference<RefreshCallbackBridge> Reference { get; }
+
+        [JSInvokable]
+        public async Task<bool> OnRefreshAsync(string payloadJson)
+        {
+            try
+            {
+                var payload = JsonSerializer.Deserialize<SanityRefreshPayload>(payloadJson, JsonOptions);
+                if (payload is null)
+                {
+                    return false;
+                }
+
+                return await _onRefresh(payload).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Never let a user callback's exception escape across the
+                // JS interop boundary unhandled; treat it as "not handled"
+                // so Sanity falls back to its own default behavior.
+                return false;
+            }
+        }
+
+        public void Dispose() => Reference.Dispose();
     }
 }

@@ -38,7 +38,20 @@ public interface ISanityPresentationService : IAsyncDisposable
     /// <see cref="IAsyncDisposable"/>; dispose it (or call
     /// <see cref="DisableVisualEditingAsync"/>) to remove the overlays.
     /// </summary>
-    Task<IAsyncDisposable> EnableVisualEditingAsync(CancellationToken cancellationToken = default);
+    /// <param name="onRefresh">
+    /// Called whenever the Presentation tool reports that content changed
+    /// (a document was mutated in the Studio, or the editor clicked the
+    /// Studio's refresh button) and your preview should update. Typically
+    /// you'll re-fetch with <see cref="SanityPerspective.Drafts"/> and
+    /// re-render. Return <c>true</c> once you've updated the UI; return
+    /// <c>false</c> (or leave this null) to let Sanity fall back to its
+    /// own default handling after a short timeout. If this throws, it's
+    /// treated as <c>false</c>.
+    /// </param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    Task<IAsyncDisposable> EnableVisualEditingAsync(
+        Func<SanityRefreshPayload, Task<bool>>? onRefresh = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Disables overlays previously enabled on this service instance, if any.</summary>
     Task DisableVisualEditingAsync(CancellationToken cancellationToken = default);

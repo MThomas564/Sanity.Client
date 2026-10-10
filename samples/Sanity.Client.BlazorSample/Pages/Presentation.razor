@@ -4,16 +4,26 @@
 
 <PageTitle>Presentation / Visual Editing — Sanity.Client sample</PageTitle>
 
-<SanityVisualEditing Enabled="@_overlaysEnabled" />
+<SanityVisualEditing Enabled="@_overlaysEnabled" OnRefresh="HandleRefreshAsync" />
 
 <h1>Presentation tool / Visual Editing</h1>
 
 <p>
     This page demonstrates <code>Sanity.Client.Presentation</code>: fetching
     with a Content Source Map, stega-encoding the result for click-to-edit,
-    and enabling the overlay script -- all served from this app's own
-    static web assets (<code>_content/Sanity.Client.Presentation/...</code>),
-    no third-party CDN involved.
+    enabling the overlay script, and wiring the <code>refresh</code>
+    callback that drives live preview updates when content changes in the
+    Studio -- all served from this app's own static web assets
+    (<code>_content/Sanity.Client.Presentation/...</code>), no third-party
+    CDN involved.
+</p>
+
+<p class="alert alert-info">
+    Stega encoding only powers <strong>click-to-edit</strong> (mapping
+    rendered text back to its source field). It does <strong>not</strong>
+    make the preview update live. That's what the <code>OnRefresh</code>
+    callback below is for: it's called whenever the Presentation tool
+    reports a mutation, so you can re-fetch and re-render in place.
 </p>
 
 @if (_error is not null)
@@ -48,9 +58,20 @@ else
     </button>
     <p class="text-muted mt-2">
         @(_overlaysEnabled
-            ? "Overlays enabled: @sanity/visual-editing-standalone was loaded and enableVisualEditing() called. Outside an actual Presentation iframe there's no Studio to click through to, but this confirms the vendored script loads and runs without error."
+            ? "Overlays enabled: @sanity/visual-editing-standalone was loaded, enableVisualEditing() called, and the refresh callback wired to HandleRefreshAsync below."
             : "Overlays are off.")
     </p>
+
+    @if (_refreshLog.Count > 0)
+    {
+        <h4 class="mt-4">Refresh events received</h4>
+        <ul>
+            @foreach (var entry in _refreshLog)
+            {
+                <li>@entry</li>
+            }
+        </ul>
+    }
 }
 
 @code {
@@ -59,8 +80,14 @@ else
     private string? _cleanedTitle;
     private string? _error;
     private bool _overlaysEnabled;
+    private readonly List<string> _refreshLog = new();
 
     protected override async Task OnInitializedAsync()
+    {
+        await LoadMovieAsync();
+    }
+
+    private async Task LoadMovieAsync()
     {
         const string query = """
             *[_type == "movie"] | order(popularity desc) [0]{
@@ -86,6 +113,24 @@ else
         {
             _error = $"Failed to load/encode movie: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// Called by Sanity.Client.Presentation whenever the Presentation tool
+    /// reports a mutation or a manual refresh request. Re-fetches and
+    /// re-renders, then returns true to tell Sanity it was handled.
+    /// </summary>
+    private async Task<bool> HandleRefreshAsync(SanityRefreshPayload payload)
+    {
+        var description = payload.Source == "mutation" && payload.Document is not null
+            ? $"mutation on {payload.Document.Type}/{payload.Document.Id} (rev {payload.Document.Rev})"
+            : $"source={payload.Source}";
+
+        _refreshLog.Insert(0, $"{DateTime.Now:HH:mm:ss.fff} — {description}");
+
+        await LoadMovieAsync();
+        StateHasChanged();
+        return true;
     }
 
     private async Task ToggleOverlays()
