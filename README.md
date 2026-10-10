@@ -27,6 +27,10 @@ WebAssembly sample app.
   `wwwroot/appsettings.json`), with three demo pages: **Movies** (a live
   GROQ query against Sanity's public demo dataset), **Presentation**
   (stega encoding + overlay wiring), and the stock Counter/Home pages.
+- `LICENSE` / `THIRD-PARTY-NOTICES.md` — this repo's MIT license, and
+  attributions/full license texts for the JavaScript vendored by
+  `Sanity.Client.Presentation` (one of them, `@vercel/stega`, is
+  MPL-2.0, not MIT -- see that file for details).
 
 ## Build & test
 

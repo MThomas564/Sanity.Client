@@ -9,8 +9,9 @@ All required JavaScript (Sanity's own `stegaEncodeSourceMap` plus
 `@sanity/visual-editing-standalone`) is **vendored inside this package**
 and served from your app's own origin as a static web asset
 (`_content/Sanity.Client.Presentation/...`) -- nothing is loaded from a
-third-party CDN at runtime. See `wwwroot/vendor/NOTICE.md` for exact
-versions and how to rebuild them.
+third-party CDN at runtime. See `THIRD-PARTY-NOTICES.md` at the repo
+root for full license texts and attributions, and
+`wwwroot/vendor/NOTICE.md` for exact versions and how to rebuild them.
 
 ## Two separate concerns -- don't confuse them
 
