@@ -24,6 +24,7 @@ real usage, so please open an issue or discussion if something here matters to y
 | Strongly typed documents (`SanityDocument`) | Available |
 | Automatic GET to POST fallback for long queries, configurable timeout | Available |
 | `Sanity.Client.Presentation`: stega encoding, visual-editing overlays, refresh bridge for Blazor | Available (see the package README for what is verified vs not) |
+| LINQ querying (`Sanity.Client.Linq` namespace, read-only) | Available (see the package README's "Supported LINQ operators" table for exact scope) |
 | Unit tests (fake `HttpMessageHandler`, DI registration) | Available |
 | Blazor WebAssembly sample | Available |
 | LICENSE, third-party notices, `SECURITY.md`, `CONTRIBUTING.md` | Available |
@@ -50,11 +51,12 @@ real usage, so please open an issue or discussion if something here matters to y
 - HTML string renderer for non-Blazor use
 
 ### 0.4: `Sanity.Client.Linq` (read-only)
-- Expression-tree translation to GROQ: `Where`, `OrderBy` / `ThenBy`, `Skip` / `Take`, `Select`, `First` / `FirstOrDefault`, `Count` / `Any`, string `Contains` / `StartsWith`, reference dereferencing
-- All values sent as GROQ parameters, never inlined
-- `ToGroq()` for inspecting the generated query
-- Golden-file tests mapping expressions to GROQ
-- Documented limits: expression trees and reflection are not trimming or AOT friendly, so raw GROQ remains the AOT-safe path
+- [x] Expression-tree translation to GROQ: `Where`, `OrderBy`/`OrderByDescending`/`ThenBy`/`ThenByDescending`, `Skip`/`Take`, `Select` (client-side projection), `First`/`FirstOrDefault`/`Single`/`SingleOrDefault`, `Count`/`LongCount`/`Any`, string `Contains`/`StartsWith`/`EndsWith`, collection `Contains` (-> GROQ `in`)
+- [x] `ToGroqQuery()` for inspecting the generated query
+- [x] Translation unit tests (exact-GROQ-string assertions) + execution tests (fake handler) + a live integration suite against the public demo dataset
+- [ ] Values are currently inlined as GROQ literals, not sent as separate `$params` -- fine for the supported value types (string/numeric/bool/date/guid/enum), but doesn't get the same "never inlined" guarantee real GROQ parameters would. Worth revisiting if/when this needs to handle untrusted input shapes beyond what it does today.
+- [ ] Reference dereferencing (`SanityReference<T>`/`.Value`-style joins) -- not supported; out of scope for a read-only LINQ layer for now
+- Documented limits: expression trees and reflection (used for the client-side `Select` projection and the generic `FetchResultAsync<T>` dispatch) are not trimming or AOT friendly, so raw GROQ remains the AOT-safe path
 
 ### 0.5: writes
 - Mutations (create, createOrReplace, patch, delete) and transactions
