@@ -58,6 +58,7 @@ Editing / click-to-edit / live preview support.
 | ✅ Dependency injection | `AddSanityClient(...)`, typed `HttpClient` via `IHttpClientFactory` |
 | ✅ Blazor WebAssembly | First-class target; see the security note on tokens below |
 | ✅ Presentation tool / Visual Editing | `Sanity.Client.Presentation`: stega-encoded click-to-edit + live preview refresh |
+| ✅ LINQ querying (read-only) | `Sanity.Client.Linq`: `Where`/`Select`/`OrderBy`/`Skip`/`Take`/`Count`/`Any`/`First(OrDefault)`/`Single(OrDefault)` translated to GROQ -- see the package README's "Supported LINQ operators" table |
 | ❌ Mutations (create/update/delete/patch) | Not implemented -- read-only client |
 | ❌ Asset uploads | Not implemented |
 | ❌ Listen API / real-time subscriptions (SSE) | Not implemented (the Live Content API used for preview refresh in `Sanity.Client.Presentation` is a different, simpler mechanism) |
