@@ -174,6 +174,15 @@ the HTTP call -- prefer the `...Async` methods.
   speed; set `UseCdn = false` for strongly-consistent reads, or supply a
   `Token` for private datasets (which automatically bypasses the CDN unless
   `UseCdnWithToken` is set).
+- A per-request `SanityFetchOptions.Perspective` of `Drafts` or `Raw`
+  automatically routes that one request to the non-CDN host, regardless
+  of how the client itself is configured. This isn't optional: Sanity's
+  CDN rejects `perspective` outright for anything but the (cacheable)
+  published perspective, and drafts are never cached there anyway --
+  confirmed against the real API, which returns the error
+  `"perspective" is not allowed for CDN requests` if you try. You don't
+  need to separately remember `UseCdn = false` just to query drafts
+  correctly.
 - Large queries automatically switch from GET to POST once the encoded
   query string would exceed 11,264 characters (the same threshold
   `@sanity/client` itself uses), so you don't need to think about URL

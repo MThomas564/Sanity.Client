@@ -82,8 +82,9 @@ public sealed class SanityClient : ISanityClient
         var useGet = queryStringLength < MaxGetQueryStringLength;
 
         var relativeUrl = BuildRequestUrl(options, includeGetQueryString: useGet ? queryString : null);
+        var requestUri = ResolveRequestUri(relativeUrl, options);
 
-        using var response = await SendAsync(relativeUrl, useGet, query, paramsElement, cancellationToken)
+        using var response = await SendAsync(requestUri, useGet, query, paramsElement, cancellationToken)
             .ConfigureAwait(false);
 
         var body = await ReadBodyAsync(response, cancellationToken).ConfigureAwait(false);
@@ -135,7 +136,7 @@ public sealed class SanityClient : ISanityClient
     }
 
     private async Task<HttpResponseMessage> SendAsync(
-        string relativeUrl,
+        Uri requestUri,
         bool useGet,
         string query,
         JsonElement? paramsElement,
@@ -145,7 +146,7 @@ public sealed class SanityClient : ISanityClient
         {
             if (useGet)
             {
-                return await _httpClient.GetAsync(relativeUrl, cancellationToken).ConfigureAwait(false);
+                return await _httpClient.GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
             }
 
             // Query (and/or its params) is large enough that encoding it
@@ -154,7 +155,7 @@ public sealed class SanityClient : ISanityClient
             // as a JSON POST body instead, matching @sanity/client's own
             // behavior above the same threshold.
             var postBody = new SanityPostQueryBody(query, paramsElement);
-            return await _httpClient.PostAsJsonAsync(relativeUrl, postBody, _jsonOptions, cancellationToken)
+            return await _httpClient.PostAsJsonAsync(requestUri, postBody, _jsonOptions, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -257,6 +258,36 @@ public sealed class SanityClient : ISanityClient
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Resolves the final request URI, auto-bypassing the CDN for a
+    /// Drafts/Raw perspective request regardless of how this client's
+    /// CDN setting was configured. This isn't optional: Sanity's CDN
+    /// rejects <c>perspective</c> outright (<c>httpInvalidQueryParamsError:
+    /// "perspective" is not allowed for CDN requests</c>) for anything
+    /// other than the (CDN-cacheable) published perspective, and drafts
+    /// are never cached there anyway -- so there's no good reason to
+    /// require every caller to separately remember
+    /// <c>SanityClientOptions.UseCdn = false</c> just to use
+    /// <see cref="SanityFetchOptions.Perspective"/> correctly.
+    /// </summary>
+    private Uri ResolveRequestUri(string relativeUrl, SanityFetchOptions? options)
+    {
+        var needsNonCdnHost = options?.Perspective is SanityPerspective.Drafts or SanityPerspective.Raw;
+
+        if (!needsNonCdnHost || _options.BaseUriOverride is not null || !_httpClient.BaseAddress!.Host.Contains("apicdn."))
+        {
+            // No override needed, the caller pinned a custom base URI
+            // (e.g. a test/mock server, which should never be silently
+            // redirected), or this client was already configured for the
+            // non-CDN host.
+            return new Uri(_httpClient.BaseAddress!, relativeUrl);
+        }
+
+        var nonCdnHost = _httpClient.BaseAddress!.Host.Replace("apicdn.", "api.");
+        var nonCdnBase = new UriBuilder(_httpClient.BaseAddress!) { Host = nonCdnHost }.Uri;
+        return new Uri(nonCdnBase, relativeUrl);
     }
 
     private static string ToPerspectiveString(SanityPerspective perspective) => perspective switch

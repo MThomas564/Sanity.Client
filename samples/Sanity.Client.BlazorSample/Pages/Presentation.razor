@@ -23,7 +23,17 @@
     rendered text back to its source field). It does <strong>not</strong>
     make the preview update live. That's what the <code>OnRefresh</code>
     callback below is for: it's called whenever the Presentation tool
-    reports a mutation, so you can re-fetch and re-render in place.
+    reports a mutation, so you can re-fetch and re-render in place --
+    <strong>with the <code>Drafts</code> perspective</strong>, since
+    without it the re-fetch would just return the same published content
+    again and an unpublished edit would never show up (this was feedback
+    from Sanity's own team: live updates in Presentation require querying
+    drafts, not published). This sample's public demo dataset happens to
+    allow anonymous draft reads; your own dataset almost certainly
+    requires a read token for this (see the
+    <a href="https://www.sanity.io/docs/visual-editing/implementing-draft-mode">
+    Draft Mode docs</a> for the recommended secret-gated, server-side-only
+    token pattern -- never put that token in a Blazor WASM app's config).
 </p>
 
 @if (_error is not null)
@@ -37,6 +47,14 @@ else if (_movie is null)
 else
 {
     <dl class="row">
+        <dt class="col-sm-3">Perspective</dt>
+        <dd class="col-sm-9">
+            <code>@(_overlaysEnabled ? "drafts" : "published")</code>
+            @(_overlaysEnabled
+                ? " -- querying drafts because overlays are on"
+                : " -- querying published because overlays are off")
+        </dd>
+
         <dt class="col-sm-3">Title (raw)</dt>
         <dd class="col-sm-9">@_movie.Title</dd>
 
@@ -98,9 +116,20 @@ else
 
         try
         {
-            var result = await Sanity.FetchAsync<Movie>(
-                query,
-                options: new SanityFetchOptions { ResultSourceMap = SanitySourceMapMode.WithKeyArraySelector });
+            // Drafts perspective while visual editing is on: this is the
+            // whole point of "live updates" in Presentation -- without
+            // it, OnRefresh's re-fetch below would just return the same
+            // published content again, and an edit made in the Studio
+            // (which isn't published yet) would never show up. The SDK
+            // auto-routes Drafts off the CDN for you (the CDN flatly
+            // rejects perspective), so you don't need UseCdn = false too.
+            var options = new SanityFetchOptions
+            {
+                ResultSourceMap = SanitySourceMapMode.WithKeyArraySelector,
+                Perspective = _overlaysEnabled ? SanityPerspective.Drafts : null,
+            };
+
+            var result = await Sanity.FetchAsync<Movie>(query, options: options);
 
             _movie = result.Result;
             if (_movie is not null)
@@ -136,5 +165,6 @@ else
     private async Task ToggleOverlays()
     {
         _overlaysEnabled = !_overlaysEnabled;
+        await LoadMovieAsync();
     }
 }
