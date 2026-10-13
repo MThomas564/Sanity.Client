@@ -60,6 +60,26 @@ public sealed class LiveSanityApiTests
         Assert.Empty(result.Result!);
     }
 
+    [Fact]
+    public async Task FetchAsync_DraftsPerspective_SucceedsAgainstTheRealApi_ViaTheNonCdnHost()
+    {
+        // The default client (no token, UseCdn's default of true) would
+        // normally route to apicdn.sanity.io, which hard-rejects the
+        // perspective param entirely for anything but published. This is
+        // the live-API confirmation that SanityClient correctly routes a
+        // Drafts/Raw request to the non-CDN host regardless, instead of
+        // surfacing that CDN error to every caller who forgets to also
+        // set UseCdn = false by hand.
+        var client = CreateClient();
+
+        var result = await client.FetchAsync<MovieTitle>(
+            "*[_type == \"movie\"][0]{title}",
+            options: new SanityFetchOptions { Perspective = SanityPerspective.Drafts });
+
+        Assert.NotNull(result.Result);
+        Assert.False(string.IsNullOrWhiteSpace(result.Result!.Title));
+    }
+
     private sealed class MovieTitle
     {
         public string Title { get; set; } = string.Empty;

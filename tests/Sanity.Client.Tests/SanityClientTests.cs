@@ -319,6 +319,84 @@ public sealed class SanityClientTests
             () => client.FetchAsync<object>("*[_type == \"post\"]", cancellationToken: cts.Token));
     }
 
+    [Fact]
+    public async Task FetchAsync_DraftsPerspective_BypassesCdn_EvenWhenClientDefaultsToCdn()
+    {
+        // No token configured => BuildBaseUri() defaults to the CDN host.
+        // Sanity's CDN hard-rejects `perspective` for anything but
+        // published (confirmed against the real API: "perspective" is
+        // not allowed for CDN requests) and never caches drafts anyway,
+        // so a Drafts/Raw request must go to the non-CDN host regardless
+        // of how the client itself is configured.
+        const string body = """{ "query": "*", "result": null }""";
+        var (client, handler) = CreateClient(HttpStatusCode.OK, body);
+
+        await client.FetchAsync<object>(
+            "*[_type == \"post\"]", options: new SanityFetchOptions { Perspective = SanityPerspective.Drafts });
+
+        Assert.Equal("test123.api.sanity.io", handler.LastRequest!.RequestUri!.Host);
+    }
+
+    [Fact]
+    public async Task FetchAsync_RawPerspective_AlsoBypassesCdn()
+    {
+        const string body = """{ "query": "*", "result": null }""";
+        var (client, handler) = CreateClient(HttpStatusCode.OK, body);
+
+        await client.FetchAsync<object>(
+            "*[_type == \"post\"]", options: new SanityFetchOptions { Perspective = SanityPerspective.Raw });
+
+        Assert.Equal("test123.api.sanity.io", handler.LastRequest!.RequestUri!.Host);
+    }
+
+    [Fact]
+    public async Task FetchAsync_PublishedPerspective_StaysOnCdn()
+    {
+        const string body = """{ "query": "*", "result": null }""";
+        var (client, handler) = CreateClient(HttpStatusCode.OK, body);
+
+        await client.FetchAsync<object>(
+            "*[_type == \"post\"]", options: new SanityFetchOptions { Perspective = SanityPerspective.Published });
+
+        Assert.Equal("test123.apicdn.sanity.io", handler.LastRequest!.RequestUri!.Host);
+    }
+
+    [Fact]
+    public async Task FetchAsync_NoPerspective_DefaultsToWhateverTheClientIsConfiguredFor()
+    {
+        const string body = """{ "query": "*", "result": null }""";
+        var (client, handler) = CreateClient(HttpStatusCode.OK, body);
+
+        await client.FetchAsync<object>("*[_type == \"post\"]");
+
+        Assert.Equal("test123.apicdn.sanity.io", handler.LastRequest!.RequestUri!.Host);
+    }
+
+    [Fact]
+    public async Task FetchAsync_DraftsPerspective_RespectsBaseUriOverride_ForTestingAgainstAMockServer()
+    {
+        const string body = """{ "query": "*", "result": null }""";
+        var (client, handler) = CreateClient(
+            HttpStatusCode.OK, body, o => o.BaseUriOverride = new Uri("https://my-mock-server.example/"));
+
+        await client.FetchAsync<object>(
+            "*[_type == \"post\"]", options: new SanityFetchOptions { Perspective = SanityPerspective.Drafts });
+
+        Assert.Equal("my-mock-server.example", handler.LastRequest!.RequestUri!.Host);
+    }
+
+    [Fact]
+    public async Task FetchAsync_DraftsPerspective_AlreadyOnNonCdnClient_StaysThere()
+    {
+        const string body = """{ "query": "*", "result": null }""";
+        var (client, handler) = CreateClient(HttpStatusCode.OK, body, o => o.UseCdn = false);
+
+        await client.FetchAsync<object>(
+            "*[_type == \"post\"]", options: new SanityFetchOptions { Perspective = SanityPerspective.Drafts });
+
+        Assert.Equal("test123.api.sanity.io", handler.LastRequest!.RequestUri!.Host);
+    }
+
     private sealed class Post
     {
         [JsonPropertyName("_id")]

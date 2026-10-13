@@ -80,6 +80,27 @@ preview/draft mode -- never on a normal production request, both for
 performance and because it leaks invisible metadata into rendered text if
 left on by accident.
 
+`Sanity.Client` automatically routes a `Drafts`/`Raw` perspective request
+off the CDN for you, regardless of how the client itself is configured --
+Sanity's CDN flatly rejects the `perspective` parameter (confirmed
+against the real API, which returns the error
+`"perspective" is not allowed for CDN requests`), and drafts are never
+cached there anyway. You don't need to also set `UseCdn = false` by hand.
+
+For a **private** dataset, drafts also require a read token -- and since
+this is a Blazor **WASM** app, that token cannot live in `wwwroot/`
+config (see the root `Sanity.Client` README's Blazor WASM token
+warning). Sanity's own recommended pattern is a secret-gated, server-side
+"enable draft mode" endpoint that validates a one-time secret the Studio
+passes, then sets a cookie your frontend checks -- the token itself never
+reaches the browser. See
+[Sanity's Draft Mode docs](https://www.sanity.io/docs/visual-editing/implementing-draft-mode)
+for the full flow. (This repo's own Blazor WASM sample queries a public
+demo dataset that happens to allow anonymous draft reads, so it can
+demonstrate the `Drafts` perspective switch itself without a token --
+but that's specific to that dataset, not something to rely on for your
+own.)
+
 ## Enable overlays AND live updates together
 
 Drop the component in your layout, bound to whatever flag tracks whether
