@@ -37,7 +37,7 @@
          tag history, i.e. `fetch-depth: 0` in CI checkout steps; a
          shallow clone silently produces a wrong (0.0.0-prefixed)
          version instead of failing loudly, so don't skip that. -->
-    <PackageReference Include="MinVer" Version="5.0.0" PrivateAssets="All" />
+    <PackageReference Include="MinVer" Version="8.0.0" PrivateAssets="All" />
   </ItemGroup>
 
   <PropertyGroup>
